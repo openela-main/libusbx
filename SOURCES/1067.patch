@@ -1,0 +1,822 @@
+From 20b8e95bfc3a9c1be1752e65043a8ed9445fbbd2 Mon Sep 17 00:00:00 2001
+From: Benjamin Berg <bberg@redhat.com>
+Date: Thu, 15 Jul 2021 17:07:09 +0200
+Subject: [PATCH 01/18] examples: Fix warning about uninitlised variable
+
+---
+ examples/fxload.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/examples/fxload.c b/examples/fxload.c
+index 541c3d3a3..85df69952 100644
+--- a/examples/fxload.c
++++ b/examples/fxload.c
+@@ -87,7 +87,8 @@ int main(int argc, char*argv[])
+ 	const char *type = NULL;
+ 	const char *fx_name[FX_TYPE_MAX] = FX_TYPE_NAMES;
+ 	const char *ext, *img_name[] = IMG_TYPE_NAMES;
+-	int fx_type = FX_TYPE_UNDEFINED, img_type[ARRAYSIZE(path)];
++	int fx_type = FX_TYPE_UNDEFINED;
++	int img_type[ARRAYSIZE(path)] = { IMG_TYPE_UNDEFINED, IMG_TYPE_UNDEFINED };
+ 	int opt, status;
+ 	unsigned int i, j;
+ 	unsigned vid = 0, pid = 0;
+
+From 0803cdc46314c70ad7f12a7c2d0b1df5b028a89d Mon Sep 17 00:00:00 2001
+From: Benjamin Berg <bberg@redhat.com>
+Date: Thu, 15 Jul 2021 17:08:12 +0200
+Subject: [PATCH 02/18] core: Add non-null annotations to avoid static analyser
+ warnings
+
+It is only valid to call these inline functions with non-null values.
+However, static analysis may complain that the functions may dereference
+the pointer incorrectly if it is only looking at the function itself
+rather than including the surrounding code.
+
+Add the appropriate annotiations to both fix warnings and improve
+detection of bugs in API users.
+---
+ libusb/libusb.h  | 13 +++++++++++++
+ libusb/libusbi.h | 14 ++++++++++----
+ 2 files changed, 23 insertions(+), 4 deletions(-)
+
+diff --git a/libusb/libusb.h b/libusb/libusb.h
+index 61cacc95a..ea09fa8d9 100644
+--- a/libusb/libusb.h
++++ b/libusb/libusb.h
+@@ -77,8 +77,10 @@ typedef SSIZE_T ssize_t;
+ 
+ #if defined(__GNUC__)
+ #define LIBUSB_PACKED __attribute__ ((packed))
++#define LIBUSB_NONNULL(...) __attribute__((nonnull(__VA_ARGS__)))
+ #else
+ #define LIBUSB_PACKED
++#define LIBUSB_NONNULL(...)
+ #endif /* __GNUC__ */
+ 
+ /** \def LIBUSB_CALL
+@@ -1479,6 +1481,7 @@ int LIBUSB_CALL libusb_set_auto_detach_kernel_driver(
+  * \param transfer a transfer
+  * \returns pointer to the first byte of the data section
+  */
++LIBUSB_NONNULL(1)
+ static inline unsigned char *libusb_control_transfer_get_data(
+ 	struct libusb_transfer *transfer)
+ {
+@@ -1497,6 +1500,7 @@ static inline unsigned char *libusb_control_transfer_get_data(
+  * \param transfer a transfer
+  * \returns a casted pointer to the start of the transfer data buffer
+  */
++LIBUSB_NONNULL(1)
+ static inline struct libusb_control_setup *libusb_control_transfer_get_setup(
+ 	struct libusb_transfer *transfer)
+ {
+@@ -1526,6 +1530,7 @@ static inline struct libusb_control_setup *libusb_control_transfer_get_setup(
+  * \ref libusb_control_setup::wLength "wLength" field of
+  * \ref libusb_control_setup
+  */
++LIBUSB_NONNULL(1)
+ static inline void libusb_fill_control_setup(unsigned char *buffer,
+ 	uint8_t bmRequestType, uint8_t bRequest, uint16_t wValue, uint16_t wIndex,
+ 	uint16_t wLength)
+@@ -1575,6 +1580,7 @@ uint32_t LIBUSB_CALL libusb_transfer_get_stream_id(
+  * \param user_data user data to pass to callback function
+  * \param timeout timeout for the transfer in milliseconds
+  */
++LIBUSB_NONNULL(1)
+ static inline void libusb_fill_control_transfer(
+ 	struct libusb_transfer *transfer, libusb_device_handle *dev_handle,
+ 	unsigned char *buffer, libusb_transfer_cb_fn callback, void *user_data,
+@@ -1606,6 +1612,7 @@ static inline void libusb_fill_control_transfer(
+  * \param user_data user data to pass to callback function
+  * \param timeout timeout for the transfer in milliseconds
+  */
++LIBUSB_NONNULL(1)
+ static inline void libusb_fill_bulk_transfer(struct libusb_transfer *transfer,
+ 	libusb_device_handle *dev_handle, unsigned char endpoint,
+ 	unsigned char *buffer, int length, libusb_transfer_cb_fn callback,
+@@ -1637,6 +1644,7 @@ static inline void libusb_fill_bulk_transfer(struct libusb_transfer *transfer,
+  * \param user_data user data to pass to callback function
+  * \param timeout timeout for the transfer in milliseconds
+  */
++LIBUSB_NONNULL(1)
+ static inline void libusb_fill_bulk_stream_transfer(
+ 	struct libusb_transfer *transfer, libusb_device_handle *dev_handle,
+ 	unsigned char endpoint, uint32_t stream_id,
+@@ -1662,6 +1670,7 @@ static inline void libusb_fill_bulk_stream_transfer(
+  * \param user_data user data to pass to callback function
+  * \param timeout timeout for the transfer in milliseconds
+  */
++LIBUSB_NONNULL(1)
+ static inline void libusb_fill_interrupt_transfer(
+ 	struct libusb_transfer *transfer, libusb_device_handle *dev_handle,
+ 	unsigned char endpoint, unsigned char *buffer, int length,
+@@ -1691,6 +1700,7 @@ static inline void libusb_fill_interrupt_transfer(
+  * \param user_data user data to pass to callback function
+  * \param timeout timeout for the transfer in milliseconds
+  */
++LIBUSB_NONNULL(1)
+ static inline void libusb_fill_iso_transfer(struct libusb_transfer *transfer,
+ 	libusb_device_handle *dev_handle, unsigned char endpoint,
+ 	unsigned char *buffer, int length, int num_iso_packets,
+@@ -1715,6 +1725,7 @@ static inline void libusb_fill_iso_transfer(struct libusb_transfer *transfer,
+  * \param length the length to set in each isochronous packet descriptor
+  * \see libusb_get_max_packet_size()
+  */
++LIBUSB_NONNULL(1)
+ static inline void libusb_set_iso_packet_lengths(
+ 	struct libusb_transfer *transfer, unsigned int length)
+ {
+@@ -1740,6 +1751,7 @@ static inline void libusb_set_iso_packet_lengths(
+  * or NULL if the packet does not exist.
+  * \see libusb_get_iso_packet_buffer_simple()
+  */
++LIBUSB_NONNULL(1)
+ static inline unsigned char *libusb_get_iso_packet_buffer(
+ 	struct libusb_transfer *transfer, unsigned int packet)
+ {
+@@ -1782,6 +1794,7 @@ static inline unsigned char *libusb_get_iso_packet_buffer(
+  * or NULL if the packet does not exist.
+  * \see libusb_get_iso_packet_buffer()
+  */
++LIBUSB_NONNULL(1)
+ static inline unsigned char *libusb_get_iso_packet_buffer_simple(
+ 	struct libusb_transfer *transfer, unsigned int packet)
+ {
+diff --git a/libusb/libusbi.h b/libusb/libusbi.h
+index b1fc88c99..db074160c 100644
+--- a/libusb/libusbi.h
++++ b/libusb/libusbi.h
+@@ -192,11 +192,13 @@ struct list_head {
+ 
+ #define list_empty(entry) ((entry)->next == (entry))
+ 
++LIBUSB_NONNULL(1)
+ static inline void list_init(struct list_head *entry)
+ {
+ 	entry->prev = entry->next = entry;
+ }
+ 
++LIBUSB_NONNULL(1, 2)
+ static inline void list_add(struct list_head *entry, struct list_head *head)
+ {
+ 	entry->next = head->next;
+@@ -206,6 +208,7 @@ static inline void list_add(struct list_head *entry, struct list_head *head)
+ 	head->next = entry;
+ }
+ 
++LIBUSB_NONNULL(1, 2)
+ static inline void list_add_tail(struct list_head *entry,
+ 	struct list_head *head)
+ {
+@@ -216,6 +219,7 @@ static inline void list_add_tail(struct list_head *entry,
+ 	head->prev = entry;
+ }
+ 
++LIBUSB_NONNULL(1)
+ static inline void list_del(struct list_head *entry)
+ {
+ 	entry->next->prev = entry->prev;
+@@ -223,6 +227,7 @@ static inline void list_del(struct list_head *entry)
+ 	entry->next = entry->prev = NULL;
+ }
+ 
++LIBUSB_NONNULL(1, 2)
+ static inline void list_cut(struct list_head *list, struct list_head *head)
+ {
+ 	if (list_empty(head)) {
+@@ -773,10 +778,10 @@ struct usbi_hotplug_message {
+ 
+ /* shared data and functions */
+ 
+-void usbi_hotplug_init(struct libusb_context *ctx);
+-void usbi_hotplug_exit(struct libusb_context *ctx);
++void usbi_hotplug_init(struct libusb_context *ctx) LIBUSB_NONNULL(1);
++void usbi_hotplug_exit(struct libusb_context *ctx) LIBUSB_NONNULL(1);
+ void usbi_hotplug_notification(struct libusb_context *ctx, struct libusb_device *dev,
+-	libusb_hotplug_event event);
++	libusb_hotplug_event event) LIBUSB_NONNULL(1);
+ void usbi_hotplug_process(struct libusb_context *ctx, struct list_head *hotplug_msgs);
+ 
+ int usbi_io_init(struct libusb_context *ctx);
+@@ -807,7 +812,8 @@ struct usbi_event_source {
+ 
+ int usbi_add_event_source(struct libusb_context *ctx, usbi_os_handle_t os_handle,
+ 	short poll_events);
+-void usbi_remove_event_source(struct libusb_context *ctx, usbi_os_handle_t os_handle);
++void usbi_remove_event_source(struct libusb_context *ctx, usbi_os_handle_t os_handle)
++	LIBUSB_NONNULL(1);
+ 
+ struct usbi_option {
+   int is_set;
+
+From 3ba52d0d048214ee530c2343260965724291255a Mon Sep 17 00:00:00 2001
+From: Benjamin Berg <bberg@redhat.com>
+Date: Wed, 9 Feb 2022 19:21:09 +0100
+Subject: [PATCH 03/18] core: Silence dereference warnings using assertions in
+ list_del
+
+It is guaranteed that entry->next and entry->prev are non-null for a
+list item that is part of a list. The static analyser might be confused
+though, so add an appropriate assert in case debug mode is enabled.
+---
+ libusb/libusbi.h | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/libusb/libusbi.h b/libusb/libusbi.h
+index db074160c..27de77aa9 100644
+--- a/libusb/libusbi.h
++++ b/libusb/libusbi.h
+@@ -222,6 +222,10 @@ static inline void list_add_tail(struct list_head *entry,
+ LIBUSB_NONNULL(1)
+ static inline void list_del(struct list_head *entry)
+ {
++#ifndef NDEBUG
++	assert(entry->next && entry->prev);
++#endif
++
+ 	entry->next->prev = entry->prev;
+ 	entry->prev->next = entry->next;
+ 	entry->next = entry->prev = NULL;
+
+From 70486056d5668c94ea3a1824541ff2f36f378d3e Mon Sep 17 00:00:00 2001
+From: Benjamin Berg <bberg@redhat.com>
+Date: Thu, 15 Jul 2021 17:11:41 +0200
+Subject: [PATCH 04/18] core: Fix incorrect free if reallocating to zero size
+
+A realloc to a size of 0 is equivalent to a free call. As such, in that
+case free'ing the original pointer would result in a double free. Fix
+this by adding a check that the new size if larger than zero.
+---
+ libusb/libusbi.h | 9 ++++++++-
+ 1 file changed, 8 insertions(+), 1 deletion(-)
+
+diff --git a/libusb/libusbi.h b/libusb/libusbi.h
+index 27de77aa9..dabf77a9d 100644
+--- a/libusb/libusbi.h
++++ b/libusb/libusbi.h
+@@ -257,7 +257,14 @@ static inline void list_splice_front(struct list_head *list, struct list_head *h
+ 
+ static inline void *usbi_reallocf(void *ptr, size_t size)
+ {
+-	void *ret = realloc(ptr, size);
++	void *ret;
++
++	if (size == 0) {
++		free(ptr);
++		return NULL;
++	}
++
++	ret = realloc(ptr, size);
+ 
+ 	if (!ret)
+ 		free(ptr);
+
+From 73f565261d9284d9f6b0081e3e23fd49773f53c7 Mon Sep 17 00:00:00 2001
+From: Benjamin Berg <bberg@redhat.com>
+Date: Thu, 15 Jul 2021 17:13:18 +0200
+Subject: [PATCH 05/18] linux_usbfs: Work around static analyser thinking fd is
+ leaked
+
+Static analysis using coverity is detecting the file descriptor handle
+potentially being leaked in some situations. The code itself is actually
+sound, but coverity is not correctly following the fact that fd can be
+compared against wrapped_fd.
+
+Fix this by introducing an fd_close variable which is compared to a
+fixed value to decide whether to close the fd. Also switch to a goto
+pattern rather than returning from different places.
+---
+ libusb/os/linux_usbfs.c | 51 ++++++++++++++++++++++++-----------------
+ 1 file changed, 30 insertions(+), 21 deletions(-)
+
+diff --git a/libusb/os/linux_usbfs.c b/libusb/os/linux_usbfs.c
+index 285d9caa7..1799a9ea0 100644
+--- a/libusb/os/linux_usbfs.c
++++ b/libusb/os/linux_usbfs.c
+@@ -904,7 +904,8 @@ static int initialize_device(struct libusb_device *dev, uint8_t busnum,
+ 	struct linux_device_priv *priv = usbi_get_device_priv(dev);
+ 	struct libusb_context *ctx = DEVICE_CTX(dev);
+ 	size_t alloc_len;
+-	int fd, speed, r;
++	int fd, fd_close = -1;
++	int speed, r;
+ 	ssize_t nb;
+ 
+ 	dev->bus_number = busnum;
+@@ -934,19 +935,22 @@ static int initialize_device(struct libusb_device *dev, uint8_t busnum,
+ 
+ 	/* cache descriptors in memory */
+ 	if (sysfs_dir) {
+-		fd = open_sysfs_attr(ctx, sysfs_dir, "descriptors");
++		fd = fd_close = open_sysfs_attr(ctx, sysfs_dir, "descriptors");
+ 	} else if (wrapped_fd < 0) {
+-		fd = get_usbfs_fd(dev, O_RDONLY, 0);
++		fd = fd_close = get_usbfs_fd(dev, O_RDONLY, 0);
+ 	} else {
+ 		fd = wrapped_fd;
+ 		r = lseek(fd, 0, SEEK_SET);
+ 		if (r < 0) {
+ 			usbi_err(ctx, "lseek failed, errno=%d", errno);
+-			return LIBUSB_ERROR_IO;
++			r = LIBUSB_ERROR_IO;
++			goto out;
+ 		}
+ 	}
+-	if (fd < 0)
+-		return fd;
++	if (fd < 0) {
++		r = fd;
++		goto out;
++	}
+ 
+ 	alloc_len = 0;
+ 	do {
+@@ -956,9 +960,8 @@ static int initialize_device(struct libusb_device *dev, uint8_t busnum,
+ 		alloc_len += desc_read_length;
+ 		priv->descriptors = usbi_reallocf(priv->descriptors, alloc_len);
+ 		if (!priv->descriptors) {
+-			if (fd != wrapped_fd)
+-				close(fd);
+-			return LIBUSB_ERROR_NO_MEM;
++			r = LIBUSB_ERROR_NO_MEM;
++			goto out;
+ 		}
+ 		read_ptr = (uint8_t *)priv->descriptors + priv->descriptors_len;
+ 		/* usbfs has holes in the file */
+@@ -967,36 +970,39 @@ static int initialize_device(struct libusb_device *dev, uint8_t busnum,
+ 		nb = read(fd, read_ptr, desc_read_length);
+ 		if (nb < 0) {
+ 			usbi_err(ctx, "read descriptor failed, errno=%d", errno);
+-			if (fd != wrapped_fd)
+-				close(fd);
+-			return LIBUSB_ERROR_IO;
++			r = LIBUSB_ERROR_IO;
++			goto out;
+ 		}
+ 		priv->descriptors_len += (size_t)nb;
+ 	} while (priv->descriptors_len == alloc_len);
+ 
+-	if (fd != wrapped_fd)
+-		close(fd);
++	if (fd_close >= 0) {
++		close(fd_close);
++		fd_close = -1;
++	}
+ 
+ 	if (priv->descriptors_len < LIBUSB_DT_DEVICE_SIZE) {
+ 		usbi_err(ctx, "short descriptor read (%zu)", priv->descriptors_len);
+-		return LIBUSB_ERROR_IO;
++		r = LIBUSB_ERROR_IO;
++		goto out;
+ 	}
+ 
+ 	r = parse_config_descriptors(dev);
+ 	if (r < 0)
+-		return r;
++		goto out;
+ 
+ 	memcpy(&dev->device_descriptor, priv->descriptors, LIBUSB_DT_DEVICE_SIZE);
+ 
+ 	if (sysfs_dir) {
+ 		/* sysfs descriptors are in bus-endian format */
+ 		usbi_localize_device_descriptor(&dev->device_descriptor);
+-		return LIBUSB_SUCCESS;
++		r = LIBUSB_SUCCESS;
++		goto out;
+ 	}
+ 
+ 	/* cache active config */
+ 	if (wrapped_fd < 0)
+-		fd = get_usbfs_fd(dev, O_RDWR, 1);
++		fd = fd_close = get_usbfs_fd(dev, O_RDWR, 1);
+ 	else
+ 		fd = wrapped_fd;
+ 	if (fd < 0) {
+@@ -1009,12 +1015,15 @@ static int initialize_device(struct libusb_device *dev, uint8_t busnum,
+ 		else
+ 			priv->active_config = -1; /* No config dt */
+ 
+-		return LIBUSB_SUCCESS;
++		r = LIBUSB_SUCCESS;
++		goto out;
+ 	}
+ 
+ 	r = usbfs_get_active_config(dev, fd);
+-	if (fd != wrapped_fd)
+-		close(fd);
++
++out:
++	if (fd_close >= 0)
++		close(fd_close);
+ 
+ 	return r;
+ }
+
+From f6cc8938c5ccf3556cfa54fe8e1d26e627995731 Mon Sep 17 00:00:00 2001
+From: Benjamin Berg <bberg@redhat.com>
+Date: Wed, 9 Feb 2022 19:08:31 +0100
+Subject: [PATCH 06/18] examples: Fix warning about NULL pointer dereference
+
+It seems like coverity is getting confused by the transfers being global
+variables, thinking that img_transfer may become NULL again.
+
+Fix this bogus warning by moving the check down.
+---
+ examples/dpfp.c | 7 +------
+ 1 file changed, 1 insertion(+), 6 deletions(-)
+
+diff --git a/examples/dpfp.c b/examples/dpfp.c
+index 682865053..4a871ee4f 100644
+--- a/examples/dpfp.c
++++ b/examples/dpfp.c
+@@ -554,13 +554,8 @@ static int do_init(void)
+ static int alloc_transfers(void)
+ {
+ 	img_transfer = libusb_alloc_transfer(0);
+-	if (!img_transfer) {
+-		errno = ENOMEM;
+-		return -1;
+-	}
+-
+ 	irq_transfer = libusb_alloc_transfer(0);
+-	if (!irq_transfer) {
++	if (!img_transfer || !irq_transfer) {
+ 		errno = ENOMEM;
+ 		return -1;
+ 	}
+
+From c2257799e48351e4ac09bb40794f3c8559d93459 Mon Sep 17 00:00:00 2001
+From: Benjamin Berg <bberg@redhat.com>
+Date: Wed, 9 Feb 2022 19:09:53 +0100
+Subject: [PATCH 07/18] examples: Assert the data fits into our static buffer
+
+---
+ examples/ezusb.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/examples/ezusb.c b/examples/ezusb.c
+index 4bed12a4c..0ea787190 100644
+--- a/examples/ezusb.c
++++ b/examples/ezusb.c
+@@ -23,6 +23,7 @@
+ 
+ #include <config.h>
+ 
++#include <assert.h>
+ #include <stdio.h>
+ #include <errno.h>
+ #include <stdlib.h>
+@@ -303,6 +304,7 @@ static int parse_ihex(FILE *image, void *context,
+ 		buf[3] = 0;
+ 		len = strtoul(buf+1, NULL, 16);
+ 		buf[3] = tmp;
++		assert(len <= sizeof(data));
+ 
+ 		/* Read the target offset (address up to 64KB) */
+ 		tmp = buf[7];
+
+From 9bd8bca34de151e191db4d33d717a36488f9a96e Mon Sep 17 00:00:00 2001
+From: Benjamin Berg <bberg@redhat.com>
+Date: Wed, 9 Feb 2022 19:11:28 +0100
+Subject: [PATCH 08/18] core: Tell coverity that libusb_open does not free
+
+Internally, libusb_open does an unref in an error case. coverity doesn't
+seem to notice that this is balanced with the earlier ref, and thinks
+that the passed in device may be free'ed. Annotate the function to
+prevent misdetections.
+
+An alternative would be to only take the reference after checking for
+the error, but the code is idiomatic as-is.
+---
+ libusb/core.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/libusb/core.c b/libusb/core.c
+index ec429b7cf..b9bf844ee 100644
+--- a/libusb/core.c
++++ b/libusb/core.c
+@@ -1294,6 +1294,7 @@ int API_EXPORTED libusb_wrap_sys_device(libusb_context *ctx, intptr_t sys_dev,
+  * \returns LIBUSB_ERROR_NO_DEVICE if the device has been disconnected
+  * \returns another LIBUSB_ERROR code on other failure
+  */
++/* coverity[-free: arg-0] false positive due to error handling path */
+ int API_EXPORTED libusb_open(libusb_device *dev,
+ 	libusb_device_handle **dev_handle)
+ {
+
+From 88e1269900cb8a581d6335d758b713d71ecd8d8e Mon Sep 17 00:00:00 2001
+From: Benjamin Berg <bberg@redhat.com>
+Date: Wed, 9 Feb 2022 19:13:26 +0100
+Subject: [PATCH 09/18] core: Remove unneeded bounds check
+
+This makes the code slightly less efficient, but shuts up warnings that
+the later switch ends up with dead error handling code.
+---
+ libusb/core.c | 4 ----
+ 1 file changed, 4 deletions(-)
+
+diff --git a/libusb/core.c b/libusb/core.c
+index b9bf844ee..1643f9334 100644
+--- a/libusb/core.c
++++ b/libusb/core.c
+@@ -2202,10 +2202,6 @@ int API_EXPORTED libusb_set_option(libusb_context *ctx,
+ 		return r;
+ 	}
+ 
+-	if (option >= LIBUSB_OPTION_MAX) {
+-		return LIBUSB_ERROR_INVALID_PARAM;
+-	}
+-
+ 	if (NULL == ctx) {
+ 		usbi_mutex_static_lock(&default_context_lock);
+ 		default_context_options[option].is_set = 1;
+
+From 1eb546e65aaca0c47615a275a961bbeb123c838e Mon Sep 17 00:00:00 2001
+From: Benjamin Berg <bberg@redhat.com>
+Date: Wed, 9 Feb 2022 19:15:16 +0100
+Subject: [PATCH 10/18] descriptor: Avoid uninitialized memory warnings
+
+The static analyzer has trouble understanding that get_config_descriptor
+fills in the config descriptor. Just initializing the memory silences
+the warning and is safe to do.
+---
+ libusb/descriptor.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/libusb/descriptor.c b/libusb/descriptor.c
+index 253ef1c31..dbcf061d9 100644
+--- a/libusb/descriptor.c
++++ b/libusb/descriptor.c
+@@ -555,7 +555,7 @@ int API_EXPORTED libusb_get_device_descriptor(libusb_device *dev,
+ int API_EXPORTED libusb_get_active_config_descriptor(libusb_device *dev,
+ 	struct libusb_config_descriptor **config)
+ {
+-	union usbi_config_desc_buf _config;
++	union usbi_config_desc_buf _config = { 0, };
+ 	uint16_t config_len;
+ 	uint8_t *buf;
+ 	int r;
+@@ -658,7 +658,7 @@ int API_EXPORTED libusb_get_config_descriptor_by_value(libusb_device *dev,
+ 
+ 	usbi_dbg(DEVICE_CTX(dev), "value %u", bConfigurationValue);
+ 	for (idx = 0; idx < dev->device_descriptor.bNumConfigurations; idx++) {
+-		union usbi_config_desc_buf _config;
++		union usbi_config_desc_buf _config = { 0, };
+ 
+ 		r = get_config_descriptor(dev, idx, _config.buf, sizeof(_config.buf));
+ 		if (r < 0)
+
+From 0de57c4af4e637a0a8adfda9a907774add81c8ec Mon Sep 17 00:00:00 2001
+From: Benjamin Berg <bberg@redhat.com>
+Date: Wed, 9 Feb 2022 19:19:04 +0100
+Subject: [PATCH 11/18] io: Suppress invalid free warning from coverity
+
+Coverity is not understanding the pointer arithmetic involved with the
+transfer in-memory storage. As such, it flags the free as invalid, even
+though everything is fine. Add an appropriate comment to silence the
+warning.
+---
+ libusb/io.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/libusb/io.c b/libusb/io.c
+index b919e9d91..a801ee6aa 100644
+--- a/libusb/io.c
++++ b/libusb/io.c
+@@ -1696,8 +1696,10 @@ int usbi_handle_transfer_completion(struct usbi_transfer *itransfer,
+ 		transfer->callback(transfer);
+ 	/* transfer might have been freed by the above call, do not use from
+ 	 * this point. */
+-	if (flags & LIBUSB_TRANSFER_FREE_TRANSFER)
++	if (flags & LIBUSB_TRANSFER_FREE_TRANSFER) {
++		/* coverity[incorrect_free] is reported incorrectly here due to the memory layout */
+ 		libusb_free_transfer(transfer);
++	}
+ 	return r;
+ }
+ 
+
+From 5dad238771240a6aa8234ba42511fb422c79800c Mon Sep 17 00:00:00 2001
+From: Benjamin Berg <bberg@redhat.com>
+Date: Wed, 9 Feb 2022 19:20:27 +0100
+Subject: [PATCH 12/18] io: Suppress missing unlock warning from coverity
+
+The function is supposed to take the lock, as such, this is the expected
+behaviour.
+---
+ libusb/io.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/libusb/io.c b/libusb/io.c
+index a801ee6aa..114087d94 100644
+--- a/libusb/io.c
++++ b/libusb/io.c
+@@ -1790,6 +1790,7 @@ int API_EXPORTED libusb_try_lock_events(libusb_context *ctx)
+ 		return 1;
+ 
+ 	ctx->event_handler_active = 1;
++	/* coverity[missing_unlock] is expected here */
+ 	return 0;
+ }
+ 
+
+From 884b55a36ae4dfae6fda1120c948bcf17a333b95 Mon Sep 17 00:00:00 2001
+From: Benjamin Berg <bberg@redhat.com>
+Date: Wed, 9 Feb 2022 19:23:45 +0100
+Subject: [PATCH 13/18] events_posix: Silence warnings about zero-allocated
+ memory
+
+The static analyser got confused by the fact that fds may be NULL if
+there are no event sources. Obviously, in that case the later loop that
+dereferences fds will never do anything, but coverity seems to miss that
+part.
+
+Silence the warning by doing an early return from the function.
+---
+ libusb/os/events_posix.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/libusb/os/events_posix.c b/libusb/os/events_posix.c
+index 715a2d551..172f8afe8 100644
+--- a/libusb/os/events_posix.c
++++ b/libusb/os/events_posix.c
+@@ -201,6 +201,10 @@ int usbi_alloc_event_data(struct libusb_context *ctx)
+ 	for_each_event_source(ctx, ievent_source)
+ 		ctx->event_data_cnt++;
+ 
++	/* Silence warning about use of zero allocated memory. */
++	if (ctx->event_data_cnt == 0)
++		return 0;
++
+ 	fds = calloc(ctx->event_data_cnt, sizeof(*fds));
+ 	if (!fds)
+ 		return LIBUSB_ERROR_NO_MEM;
+
+From 4e2589b2e9981e5213fb4267550c10638f758add Mon Sep 17 00:00:00 2001
+From: Benjamin Berg <bberg@redhat.com>
+Date: Wed, 9 Feb 2022 19:25:40 +0100
+Subject: [PATCH 14/18] linux_usbfs: Disable sleep workaround when using udev
+
+The workaround to sleep 10ms if a device node has not yet been created
+is definitely not needed with udev. I am not sure what the race looks
+like in the netlink case, unless some other userspace daemon (udev) is
+reacting to the same message and creates the device.
+
+I suppose, in the long run this might be fixed by removing the netlink
+code.
+---
+ libusb/os/linux_usbfs.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/libusb/os/linux_usbfs.c b/libusb/os/linux_usbfs.c
+index 1799a9ea0..481eff6ef 100644
+--- a/libusb/os/linux_usbfs.c
++++ b/libusb/os/linux_usbfs.c
+@@ -197,6 +197,8 @@ static int get_usbfs_fd(struct libusb_device *dev, mode_t mode, int silent)
+ 	if (fd != -1)
+ 		return fd; /* Success */
+ 
++/* This workaround is only relevant when watching netlink directly rather than udev. */
++#if !defined(HAVE_LIBUDEV)
+ 	if (errno == ENOENT) {
+ 		const long delay_ms = 10L;
+ 		const struct timespec delay_ts = { 0L, delay_ms * 1000L * 1000L };
+@@ -211,6 +213,7 @@ static int get_usbfs_fd(struct libusb_device *dev, mode_t mode, int silent)
+ 		if (fd != -1)
+ 			return fd; /* Success */
+ 	}
++#endif
+ 
+ 	if (!silent) {
+ 		usbi_err(ctx, "libusb couldn't open USB device %s, errno=%d", path, errno);
+
+From d237b8cca6c33e237da69ee096232d216f9202a8 Mon Sep 17 00:00:00 2001
+From: Benjamin Berg <bberg@redhat.com>
+Date: Wed, 9 Feb 2022 19:29:35 +0100
+Subject: [PATCH 15/18] linux_usbfs: Silence coverity warnings about returned
+ offset
+
+The seek_to_next_config function returns an offset. This was marked as
+tained by coverity, but really, we can trust it to be OK in the
+surrounding code. Mark the return value to silence the warnings.
+---
+ libusb/os/linux_usbfs.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/libusb/os/linux_usbfs.c b/libusb/os/linux_usbfs.c
+index 481eff6ef..d95ed3bea 100644
+--- a/libusb/os/linux_usbfs.c
++++ b/libusb/os/linux_usbfs.c
+@@ -638,6 +638,7 @@ int linux_get_device_address(struct libusb_context *ctx, int detached,
+ }
+ 
+ /* Return offset of the next config descriptor */
++/* coverity[-taint_source] as the returned offset can be trusted */
+ static int seek_to_next_config(struct libusb_context *ctx,
+ 	uint8_t *buffer, size_t len)
+ {
+
+From ea73414f3309a908d2819991580b080cabca17eb Mon Sep 17 00:00:00 2001
+From: Benjamin Berg <bberg@redhat.com>
+Date: Wed, 9 Feb 2022 19:31:44 +0100
+Subject: [PATCH 16/18] linux_usbfs: Silence coverity warning about missing
+ locking
+
+The reap_status field is locked in most cases when it is accessed.
+This causes a warning from coverity, however locking is not needed in
+this particular case as the transfer has not yet been submitted.
+
+As such, add an appropriate comment to silence the warning.
+---
+ libusb/os/linux_usbfs.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/libusb/os/linux_usbfs.c b/libusb/os/linux_usbfs.c
+index d95ed3bea..35cc54ab5 100644
+--- a/libusb/os/linux_usbfs.c
++++ b/libusb/os/linux_usbfs.c
+@@ -1984,6 +1984,7 @@ static int submit_bulk_transfer(struct usbi_transfer *itransfer)
+ 	tpriv->num_urbs = num_urbs;
+ 	tpriv->num_retired = 0;
+ 	tpriv->reap_action = NORMAL;
++	/* coverity[missing_lock] as we don't need to lock before submission */
+ 	tpriv->reap_status = LIBUSB_TRANSFER_COMPLETED;
+ 
+ 	for (i = 0; i < num_urbs; i++) {
+
+From 3c792a9b21ec07d9a3f369b9a79eec1e0f999823 Mon Sep 17 00:00:00 2001
+From: Benjamin Berg <bberg@redhat.com>
+Date: Thu, 10 Feb 2022 10:51:11 +0100
+Subject: [PATCH 17/18] core: Silence coverity by handling long log messages in
+ one statement
+
+Having two statements seems to confuse coverity. Having two checks right
+after each other doesn't give us anything, so just fold them into one so
+that the static analyzer is not getting confused.
+---
+ libusb/core.c | 13 +++++--------
+ 1 file changed, 5 insertions(+), 8 deletions(-)
+
+diff --git a/libusb/core.c b/libusb/core.c
+index 1643f9334..359500a9a 100644
+--- a/libusb/core.c
++++ b/libusb/core.c
+@@ -2641,16 +2641,13 @@ static void log_v(struct libusb_context *ctx, enum libusb_log_level level,
+ 		header_len = 0;
+ 	}
+ 
+-	text_len = vsnprintf(buf + header_len, sizeof(buf) - (size_t)header_len,
++	text_len = vsnprintf(buf + header_len,
++		sizeof(buf) - (size_t)header_len - (int)sizeof(USBI_LOG_LINE_END),
+ 		format, args);
+-	if (text_len < 0 || text_len + header_len >= (int)sizeof(buf)) {
++	if (text_len < 0 || text_len + header_len + (int)sizeof(USBI_LOG_LINE_END) >= (int)sizeof(buf)) {
+ 		/* Truncated log output. On some platforms a -1 return value means
+-		 * that the output was truncated. */
+-		text_len = (int)sizeof(buf) - header_len;
+-	}
+-	if (header_len + text_len + (int)sizeof(USBI_LOG_LINE_END) >= (int)sizeof(buf)) {
+-		/* Need to truncate the text slightly to fit on the terminator. */
+-		text_len -= (header_len + text_len + (int)sizeof(USBI_LOG_LINE_END)) - (int)sizeof(buf);
++		 * that the output was truncated (e.g. glibc < 2.1). */
++		text_len = (int)sizeof(buf) - header_len - (int)sizeof(USBI_LOG_LINE_END);
+ 	}
+ 	strcpy(buf + header_len + text_len, USBI_LOG_LINE_END);
+ 
+
+From c6033e4f7f30a0ee1d872dc11ec461b812b5e4e6 Mon Sep 17 00:00:00 2001
+From: Benjamin Berg <bberg@redhat.com>
+Date: Thu, 31 Mar 2022 11:49:11 +0200
+Subject: [PATCH 18/18] linux: Avoid NULL pointer dereference warning from gcc
+
+This warning is a false positive. It occurs because the HANDLE_CTX
+checks whether the passed device handle is non-NULL, returning NULL if
+it is. However, in these cases the handle is guaranteed to not be NULL
+and adding an explicit non-NULL check does not avoid the warning.
+---
+ libusb/os/linux_usbfs.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/libusb/os/linux_usbfs.c b/libusb/os/linux_usbfs.c
+index 35cc54ab5..6e3ea49af 100644
+--- a/libusb/os/linux_usbfs.c
++++ b/libusb/os/linux_usbfs.c
+@@ -1433,7 +1433,7 @@ static void op_close(struct libusb_device_handle *dev_handle)
+ 
+ 	/* fd may have already been removed by POLLERR condition in op_handle_events() */
+ 	if (!hpriv->fd_removed)
+-		usbi_remove_event_source(HANDLE_CTX(dev_handle), hpriv->fd);
++		usbi_remove_event_source(DEVICE_CTX(dev_handle->dev), hpriv->fd);
+ 	if (!hpriv->fd_keep)
+ 		close(hpriv->fd);
+ }
+@@ -2736,7 +2736,7 @@ static int op_handle_events(struct libusb_context *ctx,
+ 			/* remove the fd from the pollfd set so that it doesn't continuously
+ 			 * trigger an event, and flag that it has been removed so op_close()
+ 			 * doesn't try to remove it a second time */
+-			usbi_remove_event_source(HANDLE_CTX(handle), hpriv->fd);
++			usbi_remove_event_source(DEVICE_CTX(handle->dev), hpriv->fd);
+ 			hpriv->fd_removed = 1;
+ 
+ 			/* device will still be marked as attached if hotplug monitor thread
