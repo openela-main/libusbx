@@ -1,0 +1,80 @@
+From d414a9c447c79b0e39587998f71f8576605b4fb4 Mon Sep 17 00:00:00 2001
+From: Chris Dickens <christopher.a.dickens@gmail.com>
+Date: Mon, 13 Jan 2020 15:05:00 -0800
+Subject: [PATCH 09/10] core: Do not attempt to destroy a default context that
+ doesn't exist
+
+Calling libusb_exit(NULL) when a successful call to libusb_init(NULL)
+has not been made results in a segmentation violation. This is
+definitely a user error, but we can easily guard against it.
+
+Closes #511
+
+Signed-off-by: Chris Dickens <christopher.a.dickens@gmail.com>
+(cherry picked from commit a5624b22267ec0e146825d3fe94d9e4b2f5ae503)
+---
+ libusb/core.c         | 16 +++++++++++-----
+ libusb/version_nano.h |  2 +-
+ 2 files changed, 12 insertions(+), 6 deletions(-)
+
+diff --git a/libusb/core.c b/libusb/core.c
+index 5c0a2e0..26df871 100644
+--- a/libusb/core.c
++++ b/libusb/core.c
+@@ -2305,7 +2305,7 @@ int API_EXPORTED libusb_init(libusb_context **context)
+ 	usbi_mutex_static_lock(&active_contexts_lock);
+ 	if (first_init) {
+ 		first_init = 0;
+-		list_init (&active_contexts_list);
++		list_init(&active_contexts_list);
+ 	}
+ 	list_add (&ctx->list, &active_contexts_list);
+ 	usbi_mutex_static_unlock(&active_contexts_lock);
+@@ -2337,7 +2337,7 @@ err_free_ctx:
+ 	}
+ 
+ 	usbi_mutex_static_lock(&active_contexts_lock);
+-	list_del (&ctx->list);
++	list_del(&ctx->list);
+ 	usbi_mutex_static_unlock(&active_contexts_lock);
+ 
+ 	usbi_mutex_lock(&ctx->usb_devs_lock);
+@@ -2375,6 +2375,12 @@ void API_EXPORTED libusb_exit(struct libusb_context *ctx)
+ 	 * if we're the last user */
+ 	usbi_mutex_static_lock(&default_context_lock);
+ 	if (ctx == usbi_default_context) {
++		if (!usbi_default_context) {
++			usbi_dbg("no default context, not initialized?");
++			usbi_mutex_static_unlock(&default_context_lock);
++			return;
++		}
++
+ 		if (--default_context_refcnt > 0) {
+ 			usbi_dbg("not destroying default context");
+ 			usbi_mutex_static_unlock(&default_context_lock);
+@@ -2390,12 +2396,12 @@ void API_EXPORTED libusb_exit(struct libusb_context *ctx)
+ 		 */
+ 		destroying_default_context = 1;
+ 	} else {
+-		// Unlock default context, as we're not modifying it.
++		/* Unlock default context, as we're not modifying it. */
+ 		usbi_mutex_static_unlock(&default_context_lock);
+-  }
++	}
+ 
+ 	usbi_mutex_static_lock(&active_contexts_lock);
+-	list_del (&ctx->list);
++	list_del(&ctx->list);
+ 	usbi_mutex_static_unlock(&active_contexts_lock);
+ 
+ 	if (libusb_has_capability(LIBUSB_CAP_HAS_HOTPLUG)) {
+diff --git a/libusb/version_nano.h b/libusb/version_nano.h
+index 57c2b1d..3247cec 100644
+--- a/libusb/version_nano.h
++++ b/libusb/version_nano.h
+@@ -1 +1 @@
+-#define LIBUSB_NANO 11426
++#define LIBUSB_NANO 11427
+-- 
+2.26.1
+

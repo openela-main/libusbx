@@ -1,0 +1,41 @@
+From 686536a2862f0d69e0075316ef54c1f927d134a3 Mon Sep 17 00:00:00 2001
+From: Ludovic Rousseau <ludovic.rousseau@free.fr>
+Date: Fri, 1 Nov 2019 16:04:02 +0100
+Subject: [PATCH 03/10] Linux backend: fix ressource leak
+
+Issue detected by Coverity:
+22. leaked_handle: Handle variable fd going out of scope leaks the handle.
+
+Signed-off-by: Ludovic Rousseau <ludovic.rousseau@free.fr>
+(cherry picked from commit 1bb774ca7e5cb100e1fb7ac287e561b2155da70e)
+---
+ libusb/os/linux_usbfs.c | 4 ++++
+ libusb/version_nano.h   | 2 +-
+ 2 files changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/libusb/os/linux_usbfs.c b/libusb/os/linux_usbfs.c
+index 63fe592..dace935 100644
+--- a/libusb/os/linux_usbfs.c
++++ b/libusb/os/linux_usbfs.c
+@@ -1049,7 +1049,11 @@ static int initialize_device(struct libusb_device *dev, uint8_t busnum,
+ 	}
+ 
+ 	if (sysfs_dir && sysfs_can_relate_devices)
++	{
++		if (fd != wrapped_fd)
++			close(fd);
+ 		return LIBUSB_SUCCESS;
++	}
+ 
+ 	/* cache active config */
+ 	if (wrapped_fd < 0)
+diff --git a/libusb/version_nano.h b/libusb/version_nano.h
+index a41e19e..aebe182 100644
+--- a/libusb/version_nano.h
++++ b/libusb/version_nano.h
+@@ -1 +1 @@
+-#define LIBUSB_NANO 11404
++#define LIBUSB_NANO 11411
+-- 
+2.26.1
+

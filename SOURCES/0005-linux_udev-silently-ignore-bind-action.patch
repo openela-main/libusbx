@@ -1,0 +1,46 @@
+From 2922440e42230d3d1b63397e99efa331f499c755 Mon Sep 17 00:00:00 2001
+From: John Keeping <john@metanate.com>
+Date: Tue, 12 Nov 2019 14:01:40 +0000
+Subject: [PATCH 05/10] linux_udev: silently ignore "bind" action
+
+When a driver is bound to a device, udev emits a "bind" action that
+causes libusb to log an error message:
+
+	libusb: error [udev_hotplug_event] ignoring udev action bind
+
+Since we know this action is not relevant for libusb, silently ignore it
+to avoid people thinking there is something wrong.
+
+There is already a debug log entry for the action, so there is no need
+to add a duplicate here.
+
+Signed-off-by: John Keeping <john@metanate.com>
+(cherry picked from commit f20f2be7825e34b5273af17fc0740c60bd352b32)
+---
+ libusb/os/linux_udev.c | 2 ++
+ libusb/version_nano.h  | 2 +-
+ 2 files changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/libusb/os/linux_udev.c b/libusb/os/linux_udev.c
+index bea03e3..b09d299 100644
+--- a/libusb/os/linux_udev.c
++++ b/libusb/os/linux_udev.c
+@@ -262,6 +262,8 @@ static void udev_hotplug_event(struct udev_device* udev_dev)
+ 			linux_hotplug_enumerate(busnum, devaddr, sys_name);
+ 		} else if (detached) {
+ 			linux_device_disconnected(busnum, devaddr);
++		} else if (strncmp(udev_action, "bind", 4) == 0) {
++			/* silently ignore "known unhandled" action */
+ 		} else {
+ 			usbi_err(NULL, "ignoring udev action %s", udev_action);
+ 		}
+diff --git a/libusb/version_nano.h b/libusb/version_nano.h
+index 41a03d1..1764dec 100644
+--- a/libusb/version_nano.h
++++ b/libusb/version_nano.h
+@@ -1 +1 @@
+-#define LIBUSB_NANO 11412
++#define LIBUSB_NANO 11413
+-- 
+2.26.1
+

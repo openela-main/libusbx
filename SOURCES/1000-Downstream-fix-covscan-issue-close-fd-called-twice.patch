@@ -1,0 +1,47 @@
+From 5466375683a48bd650091781991d9e4facd06ba6 Mon Sep 17 00:00:00 2001
+From: rpm-build <rpm-build>
+Date: Fri, 26 Jun 2020 21:35:46 +0300
+Subject: [PATCH] Downstream: fix covscan issue: close(fd) called twice
+
+Seems it's already fixed upstream, but by several commits, that
+change more things.
+
+This simple patch, just prevents the case of calling close(fd) twice
+
+Warning is:
+Error: USE_AFTER_FREE (CWE-416): [#def2]
+libusb-1.0.23/libusb/os/linux_usbfs.c:1043: closed_arg: "close(int)" closes "fd".
+libusb-1.0.23/libusb/os/linux_usbfs.c:1054: double_close: Calling "close(int)"
+closes handle "fd" which has already been closed.
+---
+ libusb/os/linux_usbfs.c | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/libusb/os/linux_usbfs.c b/libusb/os/linux_usbfs.c
+index 4179b9a..537f0dd 100644
+--- a/libusb/os/linux_usbfs.c
++++ b/libusb/os/linux_usbfs.c
+@@ -1039,8 +1039,10 @@ static int initialize_device(struct libusb_device *dev, uint8_t busnum,
+ 		priv->descriptors_len += r;
+ 	} while (priv->descriptors_len == descriptors_size);
+ 
+-	if (fd != wrapped_fd)
++	if (fd != wrapped_fd) {
+ 		close(fd);
++		fd = -1;
++	}
+ 
+ 	if (priv->descriptors_len < DEVICE_DESC_LENGTH) {
+ 		usbi_err(ctx, "short descriptor read (%d)",
+@@ -1050,7 +1052,7 @@ static int initialize_device(struct libusb_device *dev, uint8_t busnum,
+ 
+ 	if (sysfs_dir && sysfs_can_relate_devices)
+ 	{
+-		if (fd != wrapped_fd)
++		if ((fd >= 0) && (fd != wrapped_fd))
+ 			close(fd);
+ 		return LIBUSB_SUCCESS;
+ 	}
+-- 
+2.26.2
+

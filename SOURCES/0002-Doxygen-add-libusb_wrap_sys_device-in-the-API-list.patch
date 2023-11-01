@@ -1,0 +1,33 @@
+From 476239823fa3b800fda1ded87b60f9f7dd10cff2 Mon Sep 17 00:00:00 2001
+From: Ludovic Rousseau <ludovic.rousseau@free.fr>
+Date: Wed, 30 Oct 2019 12:56:47 +0100
+Subject: [PATCH 02/10] Doxygen: add libusb_wrap_sys_device() in the API list
+
+(cherry picked from commit e4923e77e953d10fa1edda70e2e57adc79cf1d12)
+---
+ libusb/core.c         | 1 +
+ libusb/version_nano.h | 2 +-
+ 2 files changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/libusb/core.c b/libusb/core.c
+index 741bf99..6d025fa 100644
+--- a/libusb/core.c
++++ b/libusb/core.c
+@@ -442,6 +442,7 @@ if (cfg != desired)
+   * - libusb_unlock_event_waiters()
+   * - libusb_unref_device()
+   * - libusb_wait_for_event()
++  * - libusb_wrap_sys_device()
+   *
+   * \section Structures
+   * - libusb_bos_descriptor
+diff --git a/libusb/version_nano.h b/libusb/version_nano.h
+index dfa2fc9..a41e19e 100644
+--- a/libusb/version_nano.h
++++ b/libusb/version_nano.h
+@@ -1 +1 @@
+-#define LIBUSB_NANO 11399
++#define LIBUSB_NANO 11404
+-- 
+2.26.1
+

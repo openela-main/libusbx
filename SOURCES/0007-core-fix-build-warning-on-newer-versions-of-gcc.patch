@@ -1,0 +1,128 @@
+From fec6ad30dcb5917f03a53676f4f3ac68126e2fde Mon Sep 17 00:00:00 2001
+From: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Date: Fri, 10 Jan 2020 20:04:52 +0100
+Subject: [PATCH 07/10] core: fix build warning on newer versions of gcc
+
+When building libusb on a "newer" version of gcc (9.2), a lot of
+warnings are thrown about zero-length messages as being part of a format
+string.
+
+An example of this is:
+
+descriptor.c:546:11: warning: zero-length gnu_printf format string [-Wformat-zero-length]
+  546 |  usbi_dbg("");
+      |           ^~
+
+Fix this up by replacing all calls of:
+	usbi_dbg("");
+with
+	usbi_dbg(" ");
+as obviously we still want to keep the implicit tracing message in the
+log.
+
+Closes #674
+
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Chris Dickens <christopher.a.dickens@gmail.com>
+(cherry picked from commit 0bf84e4d516c4488e5fcf4b10e3a7263c13019e1)
+---
+ libusb/core.c         | 10 +++++-----
+ libusb/descriptor.c   |  2 +-
+ libusb/io.c           |  4 ++--
+ libusb/version_nano.h |  2 +-
+ 4 files changed, 9 insertions(+), 9 deletions(-)
+
+diff --git a/libusb/core.c b/libusb/core.c
+index 6d025fa..0048dad 100644
+--- a/libusb/core.c
++++ b/libusb/core.c
+@@ -813,7 +813,7 @@ ssize_t API_EXPORTED libusb_get_device_list(libusb_context *ctx,
+ 	int r = 0;
+ 	ssize_t i, len;
+ 	USBI_GET_CONTEXT(ctx);
+-	usbi_dbg("");
++	usbi_dbg(" ");
+ 
+ 	if (!discdevs)
+ 		return LIBUSB_ERROR_NO_MEM;
+@@ -1493,7 +1493,7 @@ void API_EXPORTED libusb_close(libusb_device_handle *dev_handle)
+ 
+ 	if (!dev_handle)
+ 		return;
+-	usbi_dbg("");
++	usbi_dbg(" ");
+ 
+ 	ctx = HANDLE_CTX(dev_handle);
+ 	handling_events = usbi_handling_events(ctx);
+@@ -1576,7 +1576,7 @@ int API_EXPORTED libusb_get_configuration(libusb_device_handle *dev_handle,
+ {
+ 	int r = LIBUSB_ERROR_NOT_SUPPORTED;
+ 
+-	usbi_dbg("");
++	usbi_dbg(" ");
+ 	if (usbi_backend.get_configuration)
+ 		r = usbi_backend.get_configuration(dev_handle, config);
+ 
+@@ -1844,7 +1844,7 @@ int API_EXPORTED libusb_clear_halt(libusb_device_handle *dev_handle,
+  */
+ int API_EXPORTED libusb_reset_device(libusb_device_handle *dev_handle)
+ {
+-	usbi_dbg("");
++	usbi_dbg(" ");
+ 	if (!dev_handle->dev->attached)
+ 		return LIBUSB_ERROR_NO_DEVICE;
+ 
+@@ -2368,7 +2368,7 @@ void API_EXPORTED libusb_exit(struct libusb_context *ctx)
+ 	struct timeval tv = { 0, 0 };
+ 	int destroying_default_context = 0;
+ 
+-	usbi_dbg("");
++	usbi_dbg(" ");
+ 	USBI_GET_CONTEXT(ctx);
+ 
+ 	/* if working with default context, only actually do the deinitialization
+diff --git a/libusb/descriptor.c b/libusb/descriptor.c
+index 53905e6..53d1f6f 100644
+--- a/libusb/descriptor.c
++++ b/libusb/descriptor.c
+@@ -543,7 +543,7 @@ int usbi_device_cache_descriptor(libusb_device *dev)
+ int API_EXPORTED libusb_get_device_descriptor(libusb_device *dev,
+ 	struct libusb_device_descriptor *desc)
+ {
+-	usbi_dbg("");
++	usbi_dbg(" ");
+ 	memcpy((unsigned char *) desc, (unsigned char *) &dev->device_descriptor,
+ 	       sizeof (dev->device_descriptor));
+ 	return 0;
+diff --git a/libusb/io.c b/libusb/io.c
+index 978b09a..77a048f 100644
+--- a/libusb/io.c
++++ b/libusb/io.c
+@@ -1330,7 +1330,7 @@ static int disarm_timerfd(struct libusb_context *ctx)
+ 	const struct itimerspec disarm_timer = { { 0, 0 }, { 0, 0 } };
+ 	int r;
+ 
+-	usbi_dbg("");
++	usbi_dbg(" ");
+ 	r = timerfd_settime(ctx->timerfd, 0, &disarm_timer, NULL);
+ 	if (r < 0)
+ 		return LIBUSB_ERROR_OTHER;
+@@ -1912,7 +1912,7 @@ void API_EXPORTED libusb_interrupt_event_handler(libusb_context *ctx)
+ 	int pending_events;
+ 	USBI_GET_CONTEXT(ctx);
+ 
+-	usbi_dbg("");
++	usbi_dbg(" ");
+ 	usbi_mutex_lock(&ctx->event_data_lock);
+ 
+ 	pending_events = usbi_pending_events(ctx);
+diff --git a/libusb/version_nano.h b/libusb/version_nano.h
+index 4150474..8e487b0 100644
+--- a/libusb/version_nano.h
++++ b/libusb/version_nano.h
+@@ -1 +1 @@
+-#define LIBUSB_NANO 11415
++#define LIBUSB_NANO 11421
+-- 
+2.26.1
+
