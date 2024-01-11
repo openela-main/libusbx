@@ -1,0 +1,38 @@
+From 41b71fbf664efd6ba8a5233dfd1a1fca15228908 Mon Sep 17 00:00:00 2001
+From: mrstock <info@niub.it>
+Date: Fri, 20 Sep 2019 14:36:07 +0200
+Subject: [PATCH 01/10] fix constant not in range of enumerated type
+
+fix "Integer constant not in range of enumerated type 'enum libusb_transfer_status'"
+
+LIBUSB_ERROR_NO_DEVICE doesn't exist on enum libusb_transfer_status
+
+(cherry picked from commit 906e706f8abdff626370e59b880f340cf54e3632)
+---
+ libusb/sync.c         | 2 +-
+ libusb/version_nano.h | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/libusb/sync.c b/libusb/sync.c
+index 70942ac..863fe5c 100644
+--- a/libusb/sync.c
++++ b/libusb/sync.c
+@@ -62,7 +62,7 @@ static void sync_transfer_wait_for_completion(struct libusb_transfer *transfer)
+ 		}
+ 		if (NULL == transfer->dev_handle) {
+ 			/* transfer completion after libusb_close() */
+-			transfer->status = LIBUSB_ERROR_NO_DEVICE;
++			transfer->status = LIBUSB_TRANSFER_NO_DEVICE;
+ 			*completed = 1;
+ 		}
+ 	}
+diff --git a/libusb/version_nano.h b/libusb/version_nano.h
+index 02179a4..dfa2fc9 100644
+--- a/libusb/version_nano.h
++++ b/libusb/version_nano.h
+@@ -1 +1 @@
+-#define LIBUSB_NANO 11397
++#define LIBUSB_NANO 11399
+-- 
+2.26.1
+

@@ -1,0 +1,53 @@
+From d29196dcc4a126dabf7d4131e3843c3b25fe8c35 Mon Sep 17 00:00:00 2001
+From: Chris Dickens <christopher.a.dickens@gmail.com>
+Date: Mon, 13 Jan 2020 14:07:31 -0800
+Subject: [PATCH 08/10] core: Fix libusb_get_max_iso_packet_size() for
+ superspeed plus
+
+The current logic fails to consider superspeed plus devices properly.
+Fix this by checking for superspeed or greater instead of matching
+against superspeed.
+
+Closes #553
+
+Signed-off-by: Chris Dickens <christopher.a.dickens@gmail.com>
+(cherry picked from commit dbd4991a2478ae57e39347bf8610e636554e4c1f)
+---
+ libusb/core.c         | 6 +++---
+ libusb/version_nano.h | 2 +-
+ 2 files changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/libusb/core.c b/libusb/core.c
+index 0048dad..5c0a2e0 100644
+--- a/libusb/core.c
++++ b/libusb/core.c
+@@ -1121,8 +1121,8 @@ int API_EXPORTED libusb_get_max_iso_packet_size(libusb_device *dev,
+ 		goto out;
+ 	}
+ 
+-	speed = libusb_get_device_speed( dev );
+-	if (speed == LIBUSB_SPEED_SUPER) {
++	speed = libusb_get_device_speed(dev);
++	if (speed >= LIBUSB_SPEED_SUPER) {
+ 		r = libusb_get_ss_endpoint_companion_descriptor(dev->ctx, ep, &ss_ep_cmp);
+ 		if (r == LIBUSB_SUCCESS) {
+ 			r = ss_ep_cmp->wBytesPerInterval;
+@@ -1131,7 +1131,7 @@ int API_EXPORTED libusb_get_max_iso_packet_size(libusb_device *dev,
+ 	}
+ 
+ 	/* If the device isn't a SuperSpeed device or retrieving the SS endpoint didn't worked. */
+-	if (speed != LIBUSB_SPEED_SUPER || r < 0) {
++	if (speed < LIBUSB_SPEED_SUPER || r < 0) {
+ 		val = ep->wMaxPacketSize;
+ 		ep_type = (enum libusb_transfer_type) (ep->bmAttributes & 0x3);
+ 
+diff --git a/libusb/version_nano.h b/libusb/version_nano.h
+index 8e487b0..57c2b1d 100644
+--- a/libusb/version_nano.h
++++ b/libusb/version_nano.h
+@@ -1 +1 @@
+-#define LIBUSB_NANO 11421
++#define LIBUSB_NANO 11426
+-- 
+2.26.1
+

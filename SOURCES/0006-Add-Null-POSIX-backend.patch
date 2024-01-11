@@ -1,0 +1,294 @@
+From 23557c82fd09b4ab7b106c13287a3ec8291f42dc Mon Sep 17 00:00:00 2001
+From: Pino Toscano <toscano.pino@tiscali.it>
+Date: Fri, 27 Dec 2019 18:41:28 +0100
+Subject: [PATCH 06/10] Add Null POSIX backend
+
+Add a simple null backend for POSIX platforms that reports no available
+devices, and provides no capabilities. Make use of this new backend on
+all the OSes without an existing backend, so libusb can be built even on
+OSes without USB support.
+
+(cherry picked from commit 53572d7e5eee79266139399924c7491174be1670)
+---
+ configure.ac          |  13 +++-
+ libusb/Makefile.am    |   7 +-
+ libusb/libusbi.h      |   2 +-
+ libusb/os/null_usb.c  | 176 ++++++++++++++++++++++++++++++++++++++++++
+ libusb/version_nano.h |   2 +-
+ 5 files changed, 196 insertions(+), 4 deletions(-)
+ create mode 100644 libusb/os/null_usb.c
+
+diff --git a/configure.ac b/configure.ac
+index da8a158..ddde325 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -100,7 +100,9 @@ case $host in
+ 	threads=posix
+ 	;;
+ *)
+-	AC_MSG_ERROR([unsupported operating system $host])
++	AC_MSG_RESULT([Null])
++	backend="null"
++	threads="posix"
+ esac
+ 
+ case $backend in
+@@ -186,6 +188,14 @@ haiku)
+ 	AC_CHECK_HEADERS([poll.h])
+ 	AC_DEFINE([POLL_NFDS_TYPE],[nfds_t],[type of second poll() argument])
+ 	;;
++null)
++	AC_DEFINE(OS_NULL, 1, [Null backend])
++	AC_SUBST(OS_NULL)
++	THREAD_CFLAGS="-pthread"
++	LIBS="-pthread"
++	AC_CHECK_HEADERS([poll.h])
++	AC_DEFINE([POLL_NFDS_TYPE],[nfds_t],[type of second poll() argument])
++	;;
+ esac
+ 
+ AC_SUBST(LIBS)
+@@ -197,6 +207,7 @@ AM_CONDITIONAL(OS_SUNOS, test "x$backend" = xsunos)
+ AM_CONDITIONAL(OS_NETBSD, test "x$backend" = xnetbsd)
+ AM_CONDITIONAL(OS_WINDOWS, test "x$backend" = xwindows)
+ AM_CONDITIONAL(OS_HAIKU, test "x$backend" = xhaiku)
++AM_CONDITIONAL(OS_NULL, test "x$backend" = xnull)
+ AM_CONDITIONAL(THREADS_POSIX, test "x$threads" = xposix)
+ AM_CONDITIONAL(CREATE_IMPORT_LIB, test "x$create_import_lib" = xyes)
+ AM_CONDITIONAL(USE_UDEV, test "x$enable_udev" = xyes)
+diff --git a/libusb/Makefile.am b/libusb/Makefile.am
+index e4da62e..466b633 100644
+--- a/libusb/Makefile.am
++++ b/libusb/Makefile.am
+@@ -22,13 +22,14 @@ WINDOWS_USB_SRC = libusb-1.0.def libusb-1.0.rc \
+ WINCE_USB_SRC = os/wince_usb.h os/wince_usb.c
+ HAIKU_USB_SRC = os/haiku_usb.h os/haiku_usb_backend.cpp \
+ 		os/haiku_usb_raw.h os/haiku_usb_raw.cpp os/haiku_pollfs.cpp
++NULL_USB_SRC = os/null_usb.c
+ 
+ EXTRA_DIST = $(POSIX_POLL_SRC) $(POSIX_THREADS_SRC) \
+ 	$(WINDOWS_POLL_SRC) $(WINDOWS_THREADS_SRC) \
+ 	$(LINUX_USBFS_SRC) $(DARWIN_USB_SRC) \
+ 	$(OPENBSD_USB_SRC) $(NETBSD_USB_SRC) \
+ 	$(WINDOWS_USB_SRC) $(WINCE_USB_SRC) \
+-	$(HAIKU_USB_SRC) \
++	$(HAIKU_USB_SRC) $(NULL_USB_SRC) \
+ 	os/linux_udev.c os/linux_netlink.c
+ 
+ if OS_LINUX
+@@ -64,6 +65,10 @@ libusb_haiku_la_SOURCES = $(HAIKU_USB_SRC)
+ libusb_1_0_la_LIBADD = libusb_haiku.la
+ endif
+ 
++if OS_NULL
++OS_SRC = $(NULL_USB_SRC)
++endif
++
+ if OS_WINDOWS
+ OS_SRC = $(WINDOWS_USB_SRC)
+ 
+diff --git a/libusb/libusbi.h b/libusb/libusbi.h
+index 0a677bd..4cb6141 100644
+--- a/libusb/libusbi.h
++++ b/libusb/libusbi.h
+@@ -575,7 +575,7 @@ int usbi_clear_event(struct libusb_context *ctx);
+ 
+ /* Internal abstraction for poll (needs struct usbi_transfer on Windows) */
+ #if defined(OS_LINUX) || defined(OS_DARWIN) || defined(OS_OPENBSD) || defined(OS_NETBSD) ||\
+-	defined(OS_HAIKU) || defined(OS_SUNOS)
++	defined(OS_HAIKU) || defined(OS_SUNOS) || defined(OS_NULL)
+ #include <unistd.h>
+ #include "os/poll_posix.h"
+ #elif defined(OS_WINDOWS) || defined(OS_WINCE)
+diff --git a/libusb/os/null_usb.c b/libusb/os/null_usb.c
+new file mode 100644
+index 0000000..97fa0b8
+--- /dev/null
++++ b/libusb/os/null_usb.c
+@@ -0,0 +1,176 @@
++/*
++ * Copyright © 2019 Pino Toscano <toscano.pino@tiscali.it>
++ *
++ * This library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2.1 of the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with this library; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
++ */
++
++#include "libusbi.h"
++
++static int
++null_get_device_list(struct libusb_context * ctx,
++	struct discovered_devs **discdevs)
++{
++	return LIBUSB_SUCCESS;
++}
++
++static int
++null_open(struct libusb_device_handle *handle)
++{
++	return LIBUSB_ERROR_NOT_SUPPORTED;
++}
++
++static void
++null_close(struct libusb_device_handle *handle)
++{
++}
++
++static int
++null_get_device_descriptor(struct libusb_device *dev, unsigned char *buf,
++    int *host_endian)
++{
++	return LIBUSB_ERROR_NOT_SUPPORTED;
++}
++
++static int
++null_get_active_config_descriptor(struct libusb_device *dev,
++    unsigned char *buf, size_t len, int *host_endian)
++{
++	return LIBUSB_ERROR_NOT_SUPPORTED;
++}
++
++static int
++null_get_config_descriptor(struct libusb_device *dev, uint8_t idx,
++    unsigned char *buf, size_t len, int *host_endian)
++{
++	return LIBUSB_ERROR_NOT_SUPPORTED;
++}
++
++static int
++null_set_configuration(struct libusb_device_handle *handle, int config)
++{
++	return LIBUSB_ERROR_NOT_SUPPORTED;
++}
++
++static int
++null_claim_interface(struct libusb_device_handle *handle, int iface)
++{
++	return LIBUSB_ERROR_NOT_SUPPORTED;
++}
++
++static int
++null_release_interface(struct libusb_device_handle *handle, int iface)
++{
++	return LIBUSB_ERROR_NOT_SUPPORTED;
++}
++
++static int
++null_set_interface_altsetting(struct libusb_device_handle *handle, int iface,
++    int altsetting)
++{
++	return LIBUSB_ERROR_NOT_SUPPORTED;
++}
++
++static int
++null_clear_halt(struct libusb_device_handle *handle, unsigned char endpoint)
++{
++	return LIBUSB_ERROR_NOT_SUPPORTED;
++}
++
++static int
++null_reset_device(struct libusb_device_handle *handle)
++{
++	return LIBUSB_ERROR_NOT_SUPPORTED;
++}
++
++static int
++null_submit_transfer(struct usbi_transfer *itransfer)
++{
++	return LIBUSB_ERROR_NOT_SUPPORTED;
++}
++
++static int
++null_cancel_transfer(struct usbi_transfer *itransfer)
++{
++	return LIBUSB_ERROR_NOT_SUPPORTED;
++}
++
++static void
++null_clear_transfer_priv(struct usbi_transfer *itransfer)
++{
++}
++
++static int
++null_handle_transfer_completion(struct usbi_transfer *itransfer)
++{
++	return LIBUSB_ERROR_NOT_SUPPORTED;
++}
++
++static int
++null_clock_gettime(int clkid, struct timespec *tp)
++{
++	switch (clkid) {
++	case USBI_CLOCK_MONOTONIC:
++		return clock_gettime(CLOCK_REALTIME, tp);
++	case USBI_CLOCK_REALTIME:
++		return clock_gettime(CLOCK_REALTIME, tp);
++	default:
++		return LIBUSB_ERROR_INVALID_PARAM;
++	}
++}
++
++const struct usbi_os_backend usbi_backend = {
++	.name = "Null backend",
++	.caps = 0,
++	.init = NULL,
++	.exit = NULL,
++	.set_option = NULL,
++	.get_device_list = null_get_device_list,
++	.hotplug_poll = NULL,
++	.wrap_sys_device = NULL,
++	.open = null_open,
++	.close = null_close,
++	.get_device_descriptor = null_get_device_descriptor,
++	.get_active_config_descriptor = null_get_active_config_descriptor,
++	.get_config_descriptor = null_get_config_descriptor,
++	.get_config_descriptor_by_value = NULL,
++	.get_configuration = NULL,
++	.set_configuration = null_set_configuration,
++	.claim_interface = null_claim_interface,
++	.release_interface = null_release_interface,
++	.set_interface_altsetting = null_set_interface_altsetting,
++	.clear_halt = null_clear_halt,
++	.reset_device = null_reset_device,
++	.alloc_streams = NULL,
++	.free_streams = NULL,
++	.dev_mem_alloc = NULL,
++	.dev_mem_free = NULL,
++	.kernel_driver_active = NULL,
++	.detach_kernel_driver = NULL,
++	.attach_kernel_driver = NULL,
++	.destroy_device = NULL,
++	.submit_transfer = null_submit_transfer,
++	.cancel_transfer = null_cancel_transfer,
++	.clear_transfer_priv = null_clear_transfer_priv,
++	.handle_events = NULL,
++	.handle_transfer_completion = null_handle_transfer_completion,
++	.clock_gettime = null_clock_gettime,
++#ifdef USBI_TIMERFD_AVAILABLE
++	.get_timerfd_clockid = NULL,
++#endif
++	.context_priv_size = 0,
++	.device_priv_size = 0,
++	.device_handle_priv_size = 0,
++	.transfer_priv_size = 0,
++};
+diff --git a/libusb/version_nano.h b/libusb/version_nano.h
+index 1764dec..4150474 100644
+--- a/libusb/version_nano.h
++++ b/libusb/version_nano.h
+@@ -1 +1 @@
+-#define LIBUSB_NANO 11413
++#define LIBUSB_NANO 11415
+-- 
+2.26.1
+
