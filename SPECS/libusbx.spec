@@ -1,6 +1,6 @@
 Summary:        Library for accessing USB devices
 Name:           libusbx
-%define upstream 1.0.26
+%define upstream 1.0.30
 Version:        %( echo %{upstream} | sed s/-/~/ )
 Release:        1%{?dist}
 # upstream libusbx has merged back with libusb and is now called libusb again
@@ -12,12 +12,9 @@ License:        LGPLv2+
 URL:            http://libusb.info
 BuildRequires:  systemd-devel doxygen libtool
 BuildRequires:  make
-#BuildRequires:  umockdev-devel >= 0.16.0
 Provides:       libusb1 = %{version}-%{release}
 Obsoletes:      libusb1 <= 1.0.9
 
-# Pull in coverity related fixes
-Patch9991:      https://github.com/libusb/libusb/pull/1067.patch
 
 %description
 This package provides a way for applications to access USB devices.
@@ -68,6 +65,8 @@ mkdir -p m4
 
 %build
 %configure --disable-static --enable-examples-build
+sed -i 's|^hardcode_libdir_flag_spec=.*|hardcode_libdir_flag_spec=""|g' libtool
+sed -i 's|^runpath_var=LD_RUN_PATH|runpath_var=DIE_RPATH_DIE|g' libtool
 %{make_build}
 pushd doc
 make docs
@@ -80,8 +79,7 @@ popd
 %install
 %{make_install}
 mkdir -p $RPM_BUILD_ROOT%{_bindir}
-install -m 755 tests/.libs/stress $RPM_BUILD_ROOT%{_bindir}/libusb-test-stress
-#install -m 755 tests/.libs/umockdev $RPM_BUILD_ROOT%{_bindir}/libusb-test-umockdev
+install -m 755 tests/stress $RPM_BUILD_ROOT%{_bindir}/libusb-test-stress
 install -m 755 examples/.libs/testlibusb \
     $RPM_BUILD_ROOT%{_bindir}/libusb-test-libusb
 # Some examples are very device-specific / require specific hw and miss --help
@@ -96,7 +94,6 @@ rm $RPM_BUILD_ROOT%{_libdir}/*.la
 %check
 LD_LIBRARY_PATH=libusb/.libs ldd $RPM_BUILD_ROOT%{_bindir}/libusb-test-stress
 LD_LIBRARY_PATH=libusb/.libs $RPM_BUILD_ROOT%{_bindir}/libusb-test-stress
-#LD_LIBRARY_PATH=libusb/.libs $RPM_BUILD_ROOT%{_bindir}/libusb-test-umockdev
 LD_LIBRARY_PATH=libusb/.libs $RPM_BUILD_ROOT%{_bindir}/libusb-test-libusb
 LD_LIBRARY_PATH=libusb/.libs $RPM_BUILD_ROOT%{_bindir}/libusb-example-listdevs
 
@@ -127,6 +124,11 @@ LD_LIBRARY_PATH=libusb/.libs $RPM_BUILD_ROOT%{_bindir}/libusb-example-listdevs
 
 
 %changelog
+* Wed Jun 10 2026 Kate Hsuan <hpa@redhat.com> - 1.0.30-1
+- Update to upstream version 1.0.30 to include the major bug fixes
+- Include the necessary API for fwupd backporting to RHEL9.
+  Resolves: RHEL-183213
+
 * Tue Apr 12 2022 Benjamin Berg <bberg@redhat.com> - 1.0.26
 - Pull in new upstream libusb containing important regression fixes
   Resolves: #2058730
