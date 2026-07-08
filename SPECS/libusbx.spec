@@ -1,31 +1,18 @@
 Summary:        Library for accessing USB devices
 Name:           libusbx
-Version:        1.0.23
-Release:        4%{?dist}
+Version:        1.0.30
+Release:        1%{?dist}
 # upstream libusbx has merged back with libusb and is now called libusb again
 # but we already have a libusb package for the old libusb-compat-0.1, renaming
 # that to libusb-compat while at the same time giving this its name is a bit
 # tricky, lets stick with the libusbx name for now
-Source0:        https://github.com/libusb/libusb/archive/v%{version}/libusb-%{version}.tar.gz
-Patch0001:      0001-fix-constant-not-in-range-of-enumerated-type.patch
-Patch0002:      0002-Doxygen-add-libusb_wrap_sys_device-in-the-API-list.patch
-Patch0003:      0003-Linux-backend-fix-ressource-leak.patch
-Patch0004:      0004-Linux-Improved-system-out-of-memory-handling.patch
-Patch0005:      0005-linux_udev-silently-ignore-bind-action.patch
-Patch0006:      0006-Add-Null-POSIX-backend.patch
-Patch0007:      0007-core-fix-build-warning-on-newer-versions-of-gcc.patch
-Patch0008:      0008-core-Fix-libusb_get_max_iso_packet_size-for-superspe.patch
-Patch0009:      0009-core-Do-not-attempt-to-destroy-a-default-context-tha.patch
-Patch0010:      0010-linux_usbfs-Wait-until-all-URBs-have-been-reaped-bef.patch
-
-# Downstream only - a simple fix for a covscan issue.
-Patch1000:      1000-Downstream-fix-covscan-issue-close-fd-called-twice.patch
-
+Source0:        https://github.com/libusb/libusb/archive/v%{version}/libusb-%{version}.tar.bz2
 
 License:        LGPLv2+
 Group:          System Environment/Libraries
 URL:            http://libusb.info
 BuildRequires:  systemd-devel doxygen libtool
+BuildRequires:  make
 Provides:       libusb1 = %{version}-%{release}
 Obsoletes:      libusb1 <= 1.0.9
 
@@ -76,11 +63,12 @@ This package contains tests and examples for %{name}.
 %autosetup -S git_am -n libusb-%{version}
 chmod -x examples/*.c
 mkdir -p m4
-autoreconf -ivf
 
 
 %build
 %configure --disable-static --enable-examples-build
+sed -i 's|^hardcode_libdir_flag_spec=.*|hardcode_libdir_flag_spec=""|g' libtool
+sed -i 's|^runpath_var=LD_RUN_PATH|runpath_var=DIE_RPATH_DIE|g' libtool
 make %{?_smp_mflags}
 pushd doc
 make docs
@@ -93,7 +81,7 @@ popd
 %install
 %make_install
 mkdir -p $RPM_BUILD_ROOT%{_bindir}
-install -m 755 tests/.libs/stress $RPM_BUILD_ROOT%{_bindir}/libusb-test-stress
+install -m 755 tests/stress $RPM_BUILD_ROOT%{_bindir}/libusb-test-stress
 install -m 755 examples/.libs/testlibusb \
     $RPM_BUILD_ROOT%{_bindir}/libusb-test-libusb
 # Some examples are very device-specific / require specific hw and miss --help
@@ -117,7 +105,7 @@ LD_LIBRARY_PATH=libusb/.libs $RPM_BUILD_ROOT%{_bindir}/libusb-example-listdevs
 
 %files
 %license COPYING
-%doc AUTHORS README.md ChangeLog
+%doc AUTHORS README ChangeLog
 %{_libdir}/*.so.*
 
 %files devel
@@ -126,7 +114,7 @@ LD_LIBRARY_PATH=libusb/.libs $RPM_BUILD_ROOT%{_bindir}/libusb-example-listdevs
 %{_libdir}/pkgconfig/libusb-1.0.pc
 
 %files devel-doc
-%doc doc/html examples/*.c
+%doc doc/api-1.0 examples/*.c
 
 %files tests-examples
 %{_bindir}/libusb-example-fxload
@@ -137,6 +125,11 @@ LD_LIBRARY_PATH=libusb/.libs $RPM_BUILD_ROOT%{_bindir}/libusb-example-listdevs
 
 
 %changelog
+* Mon Jun 15 2026 Kate Hsuan <hpa@redhat.com> - 1.0.30-1
+- The release 1.0.30 resolves major bugs
+- Include the new API for fwupd backporting
+  Resovles: RHEL-184258
+
 * Wed Aug 12 2020 Victor Toso <victortoso@redhat.com> - 1.0.23-4
 - Install README.md as README is only a symlink to .md
   Resolves: rhbz#1849682
